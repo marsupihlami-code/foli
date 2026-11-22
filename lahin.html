@@ -6,13 +6,13 @@
 .market-filter{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650;margin:10px 0 14px}.market-filter input{width:19px;height:19px;accent-color:#d99c00}.stop-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.heart{border:0;background:transparent;color:#858585;font-size:32px;line-height:1;padding:8px;min-width:44px;min-height:44px;flex-shrink:0}.heart.active{color:#168447;text-shadow:0 0 0 #168447}.heart:focus-visible,.stop-choice:focus-visible,.match-choice:focus-visible{outline:2px solid #168447;outline-offset:2px}.nearby .stop-card{position:relative;flex:0 0 150px;min-width:0;border:1px solid #ddd;border-radius:12px;background:#f3f3f3;display:flex;align-items:flex-start}.nearby .stop-card.selected{border:2px solid #d99c00;background:#fff5d9}.nearby .stop-choice{flex:1;width:auto;max-width:none;min-width:0;border:0;background:transparent;padding:10px 0 10px 10px;text-align:left}.nearby .stop-choice b,.nearby .stop-choice .muted{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nearby .stop-card .heart{font-size:26px;width:40px;max-width:40px;min-width:40px;padding:8px 4px}.match-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid #eee}.match-choice{flex:1;min-width:0;text-align:left;border:0;background:white;padding:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .heart{appearance:none;-webkit-appearance:none;border:none!important;box-shadow:none!important;border-radius:0!important;background:transparent!important}.heart:focus{box-shadow:none}.favorite-mark{color:#168447;font-size:25px;line-height:1;padding:8px 9px;flex-shrink:0;align-self:center}.nearby .favorite-mark{font-size:23px;padding:8px 7px}.stop-heading>.heart{margin-left:auto}.nearby .stop-card .heart{display:none}
 </style></head><body><div class="app"><header class="top"><img class="brand-png" src="./zaani-logo.png" alt="Zaani – Föli-bussi"></header>
-<main class="content"><div class="actions"><button class="primary" id="locate">📍 Etsi lähin pysäkki</button><button class="secondary" id="refresh">Päivitä</button></div><div id="status" class="status" aria-live="polite">Salli sijainti, jotta lähimmät pysäkit löytyvät.</div><div id="error" role="alert"></div><div style="margin:14px 0"><label for="manual"><b>Valitse pysäkki ilman sijaintia</b></label><div style="display:flex;gap:8px;margin-top:8px"><input id="manual" placeholder="Pysäkin nimi tai numero" style="flex:1;min-width:0;padding:12px;border:1px solid #bbb;border-radius:10px;font:inherit"><button class="secondary" id="search">Hae</button></div><div id="matches"></div></div><label class="market-filter"><input id="marketOnly" type="checkbox"> Vain Kauppatorille menevät bussit</label><div id="marketInfo" class="muted"></div><label class="market-filter"><input id="smartEta" type="checkbox" checked> Zaanin kokeellinen ennuste</label><div id="stop"></div><div id="nearby" class="nearby"></div><div id="list" aria-live="polite"></div></main>
+<main class="content"><div class="actions"><button class="primary" id="locate">📍 Etsi lähin pysäkki</button><button class="secondary" id="refresh">Päivitä</button></div><div id="status" class="status" aria-live="polite">Salli sijainti, jotta lähimmät pysäkit löytyvät.</div><div id="error" role="alert"></div><div style="margin:14px 0"><label for="manual"><b>Valitse pysäkki ilman sijaintia</b></label><div style="display:flex;gap:8px;margin-top:8px"><input id="manual" placeholder="Pysäkin nimi tai numero" style="flex:1;min-width:0;padding:12px;border:1px solid #bbb;border-radius:10px;font:inherit"><button class="secondary" id="search">Hae</button></div><div id="matches"></div></div><label class="market-filter"><input id="smartEta" type="checkbox" checked> Zaanin kokeellinen ennuste</label><div id="stop"></div><div id="nearby" class="nearby"></div><div id="list" aria-live="polite"></div></main>
 <footer class="foot">Lähde: Turun seudun joukkoliikenteen liikennöinti- ja aikatauludata, data.foli.fi (CC BY 4.0). Epävirallinen konsepti. Sijainti käsitellään vain omassa selaimessasi, eikä sitä lähetetä sovelluksen palvelimelle. Reaaliaikaennusteet voivat muuttua. Päivitys 30 sekunnin välein.</footer></div>
 <script>
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const favorites=new Set((()=>{try{const v=JSON.parse(localStorage.getItem('zaani-favorite-stops-v1')||'[]');return Array.isArray(v)?v.map(String):[]}catch(e){return []}})());
-let stops=[],selected=null,last=[],busy=false,requestId=0,position=null;const marketCache=new Map();let marketStatus=new Map();let marketToken=0;let marketLoading=false;const etaHistory=new Map();const openKeys=new Set();
+let stops=[],selected=null,last=[],busy=false,requestId=0,position=null;const etaHistory=new Map();const openKeys=new Set();
 function distance(a,b,c,d){let r=Math.PI/180,R=6371000,dl=(c-a)*r,do_=(d-b)*r,x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(do_/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function clock(t){return Number(t)>0?new Date(Number(t)*1000).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}):'–'}
 function err(s){$('error').innerHTML=s?'<div class="error">'+esc(s)+'</div>':''}
@@ -53,70 +53,14 @@ function adjustedEta(v,baseline,now){
  return {time:Math.max(now,baseline+correction),active:Math.abs(correction)>=5};
 }
 function rowKey(v){return [v.lineref||'',v.aimedarrivaltime||v.aimeddeparturetime||'',v.destinationdisplay||''].join('|')}
-function render(){if(!selected)return;const filtering=$('marketOnly').checked;const now=Date.now()/1000;const rows=last.map(v=>{const live=(v.monitored===true||v.monitored==='true')&&Number(v.expectedarrivaltime)>0;const t=Number(live?v.expectedarrivaltime:(v.aimedarrivaltime||v.aimeddeparturetime));const prediction=adjustedEta({...v,live},t,now);return {...v,t:prediction.time,officialTime:t,experimental:prediction.active,live}}).filter(v=>Number.isFinite(v.t)&&v.t>now-60).filter(v=>!filtering||marketStatus.get(tripKey(v))===true).sort((a,b)=>a.t-b.t);$('list').innerHTML=rows.length?rows.slice(0,25).map(v=>{const min=Math.max(0,Math.ceil((v.t-now)/60));const key=rowKey(v);const open=openKeys.has(key);return '<article class="bus" data-key="'+esc(key)+'"><button class="main" aria-expanded="'+open+'"><span class="line">'+esc(v.lineref||'?')+'</span><span class="mins"><strong>'+(min===0?'Nyt':min+' min')+'</strong><div class="sub">'+(v.experimental?'◆ Zaanin arvio':v.live?'● GPS-ennuste':'○ Aikataulutieto')+'</div></span><span>⌄</span></button><div class="details" '+(open?'':'hidden')+'><div><b>Määränpää:</b> '+esc(v.destinationdisplay||'Ei tietoa')+'</div><div><b>Saapuminen:</b> '+clock(v.t)+'</div><div><b>Aikataulu:</b> '+clock(v.aimedarrivaltime||v.aimeddeparturetime)+'</div><div><b>Tieto:</b> '+(v.live?'GPS-ennuste':'Aikataulutieto')+'</div></div></article>'}).join('') :'<div class="empty">'+(filtering?(marketLoading?'Tarkistetaan Kauppatorille meneviä vuoroja…':'Vahvistettuja Kauppatorille meneviä vuoroja ei löytynyt.'): 'Tulevia lähtöjä ei löytynyt tälle pysäkille.')+'</div>';$('list').querySelectorAll('.main').forEach(b=>b.onclick=()=>{const d=b.nextElementSibling;d.hidden=!d.hidden;b.setAttribute('aria-expanded',String(!d.hidden));const k=b.parentElement.dataset.key;d.hidden?openKeys.delete(k):openKeys.add(k)})}
-async function choose(id){openKeys.clear();marketStatus=new Map();marketToken++;marketLoading=false;selected=stops.find(s=>s.id===id);last=[];$('list').innerHTML='';displayStops();await load()}
-async function load(){if(!selected)return;const id=++requestId;setStatus('Haetaan saapumisia…');err('');try{const data=await json('https://data.foli.fi/siri/sm/'+encodeURIComponent(selected.id));if(id!==requestId)return;if(data.status&&String(data.status).toUpperCase()!=='OK')throw Error('Rajapinnan tila: '+data.status);let rows=data.result;if(rows&&!Array.isArray(rows)&&typeof rows==='object')rows=Object.values(rows);if(!Array.isArray(rows))throw Error('Tuntematon saapumistietojen muoto');last=rows;recordEta(rows);render();if($('marketOnly').checked)void checkMarketRoutes();setStatus('Päivitetty '+new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',second:'2-digit'}))}catch(e){if(id!==requestId)return;setStatus('Saapumistietoja ei voitu päivittää');err('Fölin saapumistietojen haku epäonnistui: '+e.message);if(last.length)render()}}
+function render(){if(!selected)return;const now=Date.now()/1000;const rows=last.map(v=>{const live=(v.monitored===true||v.monitored==='true')&&Number(v.expectedarrivaltime)>0;const t=Number(live?v.expectedarrivaltime:(v.aimedarrivaltime||v.aimeddeparturetime));const prediction=adjustedEta({...v,live},t,now);return {...v,t:prediction.time,officialTime:t,experimental:prediction.active,live}}).filter(v=>Number.isFinite(v.t)&&v.t>now-60).sort((a,b)=>a.t-b.t);$('list').innerHTML=rows.length?rows.slice(0,25).map(v=>{const min=Math.max(0,Math.ceil((v.t-now)/60));const key=rowKey(v);const open=openKeys.has(key);return '<article class="bus" data-key="'+esc(key)+'"><button class="main" aria-expanded="'+open+'"><span class="line">'+esc(v.lineref||'?')+'</span><span class="mins"><strong>'+(min===0?'Nyt':min+' min')+'</strong><div class="sub">'+(v.experimental?'◆ Zaanin arvio':v.live?'● GPS-ennuste':'○ Aikataulutieto')+'</div></span><span>⌄</span></button><div class="details" '+(open?'':'hidden')+'><div><b>Määränpää:</b> '+esc(v.destinationdisplay||'Ei tietoa')+'</div><div><b>Saapuminen:</b> '+clock(v.t)+'</div><div><b>Aikataulu:</b> '+clock(v.aimedarrivaltime||v.aimeddeparturetime)+'</div><div><b>Tieto:</b> '+(v.live?'GPS-ennuste':'Aikataulutieto')+'</div></div></article>'}).join('') :'<div class="empty">'+( 'Tulevia lähtöjä ei löytynyt tälle pysäkille.')+'</div>';$('list').querySelectorAll('.main').forEach(b=>b.onclick=()=>{const d=b.nextElementSibling;d.hidden=!d.hidden;b.setAttribute('aria-expanded',String(!d.hidden));const k=b.parentElement.dataset.key;d.hidden?openKeys.delete(k):openKeys.add(k)})}
+async function choose(id){openKeys.clear();selected=stops.find(s=>s.id===id);last=[];$('list').innerHTML='';displayStops();await load()}
+async function load(){if(!selected)return;const id=++requestId;setStatus('Haetaan saapumisia…');err('');try{const data=await json('https://data.foli.fi/siri/sm/'+encodeURIComponent(selected.id));if(id!==requestId)return;if(data.status&&String(data.status).toUpperCase()!=='OK')throw Error('Rajapinnan tila: '+data.status);let rows=data.result;if(rows&&!Array.isArray(rows)&&typeof rows==='object')rows=Object.values(rows);if(!Array.isArray(rows))throw Error('Tuntematon saapumistietojen muoto');last=rows;recordEta(rows);render();setStatus('Päivitetty '+new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',second:'2-digit'}))}catch(e){if(id!==requestId)return;setStatus('Saapumistietoja ei voitu päivittää');err('Fölin saapumistietojen haku epäonnistui: '+e.message);if(last.length)render()}}
 async function ensureStops(){if(!stops.length){const d=await json('https://data.foli.fi/gtfs/stops');stops=parseStops(d);if(!stops.length)throw Error('Pysäkkitietoja ei löytynyt')}}
 async function manualSearch(){const q=$('manual').value.trim().toLocaleLowerCase('fi-FI');if(!q){err('Kirjoita pysäkin nimi tai numero.');return}setStatus('Haetaan pysäkkejä…');try{await ensureStops();renderMatches();setStatus('Valitse pysäkki hakutuloksista.')}catch(e){err('Pysäkkihaku epäonnistui: '+e.message);setStatus('Haku epäonnistui')}}
 async function locate(){if(!navigator.geolocation){err('Selain ei tue sijaintitietoa.');return}err('');setStatus('Odotetaan sijaintilupaa…');$('locate').disabled=true;navigator.geolocation.getCurrentPosition(async p=>{try{position={lat:p.coords.latitude,lon:p.coords.longitude};setStatus('Haetaan pysäkkejä…');await ensureStops();stops.forEach(s=>s.dist=distance(position.lat,position.lon,s.lat,s.lon));stops.sort((a,b)=>a.dist-b.dist);await choose(stops[0].id)}catch(e){setStatus('Pysäkkien haku epäonnistui');err('Pysäkkitietojen lataus epäonnistui: '+e.message)}finally{$('locate').disabled=false}},e=>{$('locate').disabled=false;setStatus('Sijaintia ei saatu');err(e.code===1?'Sijaintilupa estettiin. Voit silti hakea pysäkin nimellä tai numerolla yllä.':'Sijaintia ei saatu. Voit hakea pysäkin nimellä tai numerolla yllä.')},{enableHighAccuracy:true,timeout:15000,maximumAge:15000})}
 
 
-function tripKey(v){return [String(v.lineref||''),String(v.aimedarrivaltime||v.aimeddeparturetime||''),String(v.destinationdisplay||'')].join('|')}
-function seconds(t){const p=String(t||'').split(':').map(Number);return p.length===3&&p.every(Number.isFinite)?p[0]*3600+p[1]*60+p[2]:NaN}
-function secondsOfDay(timestamp){const d=new Date(Number(timestamp)*1000);return d.getHours()*3600+d.getMinutes()*60+d.getSeconds()}
-function timeGap(a,b){return Math.min(Math.abs(a-b),Math.abs(a-b+86400),Math.abs(a-b-86400))}
-async function checkMarketRoutes(){
- const token=++marketToken, stopId=String(selected?.id||'');
- if(!stopId)return;
- marketLoading=true;$('marketInfo').textContent='Tarkistetaan vuorojen pysäkkijärjestystä…';render();
- try{
-  await ensureStops();
-  const marketIds=new Set(stops.filter(s=>/kauppatori|salutorget/i.test(s.name)).map(s=>String(s.id)));
-  if(!marketIds.size)throw Error('Kauppatorin pysäkkitunnuksia ei löytynyt');
-  const timetable=await json('https://data.foli.fi/gtfs/stop_times/stop/'+encodeURIComponent(stopId));
-  const entries=Array.isArray(timetable)?timetable:(Array.isArray(timetable.result)?timetable.result:[]);
-  if(!entries.length)throw Error('Pysäkin aikataulutietoja ei löytynyt');
-  const buses=last.slice(0,35);
-  const relevant=entries.filter(e=>buses.some(v=>timeGap(seconds(e.arrival_time||e.departure_time),secondsOfDay(v.aimedarrivaltime||v.aimeddeparturetime))<=120)).slice(0,90);
-  const unique=[...new Set(relevant.map(e=>String(e.trip_id||'')).filter(Boolean))];
-  let cursor=0;
-  async function worker(){
-   while(cursor<unique.length&&token===marketToken){
-    const tripId=unique[cursor++];
-    let info=marketCache.get(tripId);
-    if(!info){
-     try{
-      const [routeData,sequenceData]=await Promise.all([
-       json('https://data.foli.fi/gtfs/trips/trip/'+encodeURIComponent(tripId)),
-       json('https://data.foli.fi/gtfs/stop_times/trip/'+encodeURIComponent(tripId))
-      ]);
-      const trip=Array.isArray(routeData)?routeData[0]:(routeData.result?.[0]||routeData.result||routeData);
-      const sequence=Array.isArray(sequenceData)?sequenceData:(sequenceData.result||[]);
-      info={line:String(trip?.route_id||''),sequence:Array.isArray(sequence)?sequence:[]};
-      marketCache.set(tripId,info);
-     }catch(e){continue}
-    }
-    if(token!==marketToken)return;
-    const seq=info.sequence;
-    for(const e of relevant.filter(x=>String(x.trip_id)===tripId)){
-     const originSeq=Number(e.stop_sequence);
-     const toMarket=seq.some(t=>marketIds.has(String(t.stop_id))&&Number(t.stop_sequence)>originSeq);
-     if(!toMarket)continue;
-     for(const v of buses){
-      const planned=Number(v.aimedarrivaltime||v.aimeddeparturetime);
-      if(info.line.toUpperCase()===String(v.lineref||'').toUpperCase()&&timeGap(seconds(e.arrival_time||e.departure_time),secondsOfDay(planned))<=120)marketStatus.set(tripKey(v),true);
-     }
-    }
-    render();
-   }
-  }
-  await Promise.all(Array.from({length:Math.min(5,unique.length)},()=>worker()));
-  if(token!==marketToken)return;
-  $('marketInfo').textContent='Näytetään vain vuorot, joiden Kauppatorin pysähdys on vahvistettu valitun pysäkin jälkeen.';
- }catch(e){if(token===marketToken)$('marketInfo').textContent='Reittitietoja ei voitu varmistaa: '+e.message+'. Poista suodatin nähdäksesi kaikki bussit.'}
- finally{if(token===marketToken){marketLoading=false;render()}}
-}
-$('marketOnly').onchange=()=>{marketToken++;marketLoading=false;marketStatus=new Map();$('marketInfo').textContent='';render();if($('marketOnly').checked)void checkMarketRoutes()};
 $('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected)load()},30000);setInterval(()=>{if(selected&&last.length)render()},15000);
 </script>
 <!-- Cloudflare Web Analytics -->
