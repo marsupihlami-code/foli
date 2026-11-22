@@ -110,4 +110,8 @@ async function checkMarketRoutes(){
 }
 $('marketOnly').onchange=()=>{marketToken++;marketLoading=false;marketStatus=new Map();$('marketInfo').textContent='';render();if($('marketOnly').checked)void checkMarketRoutes()};
 $('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected)load()},30000);setInterval(()=>{if(selected&&last.length)render()},15000);
-</script></body></html>
+</script>
+<!-- Cloudflare Web Analytics -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"ab028c5fbc104f8d970c2160fac77650"}'></script>
+<!-- End Cloudflare Web Analytics -->
+</body></html>
