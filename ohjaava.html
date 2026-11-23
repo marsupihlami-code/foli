@@ -68,27 +68,24 @@ function renderWalkSummary(){
  el.innerHTML='Kävelyaika pysäkille <strong>'+Math.ceil(walkRoute.walkSeconds/60)+' min</strong> · '+Math.round(walkRoute.meters)+' m';
 }
 
-function urgencyClass(v,now){
- if(!position||!walkRoute||walkRoute.status!=='ready'||walkRoute.stopId!==selected?.id||walkRoute.meters<20)return '';
- const meters=walkRoute.meters,available=Math.max(0,v.t-now-120);
- if(available>=walkRoute.walkSeconds)return 'walk-ok';
- if(available>=meters/1000*450)return 'jog-needed';
- if(available>=meters/1000*327.3)return 'run-needed';
- return 'too-late';
+function movementState(v,now){
+ if(!position||!walkRoute||walkRoute.stopId!==selected?.id||walkRoute.status!=='ready'||walkRoute.meters<20)return null;
+ const available=v.t-now-120,walk=walkRoute.walkSeconds,meters=walkRoute.meters;
+ const departureIn=available-walk;
+ if(departureIn>20)return {label:'Lähde '+Math.ceil(departureIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
+ if(departureIn>=-20)return {label:'Lähde nyt!',icon:'→',cls:'walk-ok'};
+ if(available>=meters/1000*450)return {label:'Kävele',icon:'→',cls:'walk-ok'};
+ if(available>=meters/1000*327.3)return {label:'Hölkkää!',icon:'»',cls:'jog-needed'};
+ if(available>=0)return {label:'Juokse!',icon:'»',cls:'run-needed'};
+ return {label:'Myöhästyt!',icon:'!',cls:'too-late'};
 }
+function urgencyClass(v,now){return movementState(v,now)?.cls||'';}
 function advice(v,now){
- if(!position||!walkRoute||walkRoute.stopId!==selected?.id)return '';
- if(walkRoute.status!=='ready')return '';
- if(walkRoute.meters<20)return '';
- const remaining=Math.max(0,v.t-now),meters=walkRoute.meters,walk=walkRoute.walkSeconds;
- const buffer=120,available=Math.max(0,remaining-buffer);
- let msg,cls='';
- if(available>=walk){const wait=Math.ceil((available-walk)/60);msg=wait>0?'Lähde '+wait+' min kuluttua':'Lähde nyt';}
- else if(available>=meters/1000*450){msg='Hölkkää';cls='urgent';}
- else if(available>=meters/1000*327.3){msg='Juokse';cls='urgent';}
- else {msg='Myöhästyt';cls='late';}
- const icon=available>=walk?'→':available>=meters/1000*327.3?'»':'!';return '<span class="travel-advice"><span class="action-icon" aria-hidden="true">'+icon+'</span>'+msg+'</span>';
+ const state=movementState(v,now);
+ if(!state)return '';
+ return '<span class="travel-advice"><span class="action-icon" aria-hidden="true">'+state.icon+'</span>'+state.label+'</span>';
 }
+
 function heartButton(s){const active=favorites.has(String(s.id));return '<button type="button" class="heart'+(active?' active':'')+'" data-favorite="'+esc(s.id)+'" aria-pressed="'+active+'" aria-label="'+(active?'Poista suosikeista: ':'Lisää suosikiksi: ')+esc(s.name)+'" title="'+(active?'Poista suosikeista':'Lisää suosikiksi')+'">'+(active?'&#9829;':'&#9825;')+'</button>'}
 function favoriteMark(s){return favorites.has(String(s.id))?'<span class="favorite-mark" role="img" aria-label="Suosikkipysäkki">&#9829;</span>':''}
 function renderFavorites(){const items=stops.filter(s=>favorites.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,'fi'));$('favorites').innerHTML=items.length?'<div class="muted">Suosikkipysäkit</div>'+items.map(s=>'<button type="button" class="secondary" style="margin:5px 5px 5px 0" data-id="'+esc(s.id)+'">'+esc(s.name)+'</button>').join(''):'';$('favorites').querySelectorAll('button').forEach(b=>b.onclick=()=>choose(b.dataset.id))}
@@ -144,7 +141,7 @@ function startPositionWatch(){
 }
 
 
-$('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected&&!document.hidden)load()},30000);setInterval(()=>{if(selected&&last.length&&!document.hidden)render()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&selected)load()});(async()=>{try{await ensureStops();const saved=localStorage.getItem('zaani-ohjaava-last-stop-v1');if(saved&&stops.some(s=>s.id===saved))await choose(saved)}catch(e){}})();
+$('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected&&!document.hidden)load()},30000);setInterval(()=>{if(selected&&last.length&&!document.hidden)render()},5000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&selected)load()});(async()=>{try{await ensureStops();const saved=localStorage.getItem('zaani-ohjaava-last-stop-v1');if(saved&&stops.some(s=>s.id===saved))await choose(saved)}catch(e){}})();
 </script>
 <!-- Cloudflare Web Analytics -->
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"ab028c5fbc104f8d970c2160fac77650"}'></script>
