@@ -55,7 +55,7 @@ function renderWalkSummary(){
 }
 function urgencyClass(v,now){
  if(!position||!walkRoute||walkRoute.status!=='ready'||walkRoute.stopId!==selected?.id||walkRoute.meters<20)return '';
- const meters=walkRoute.meters,available=Math.max(0,v.t-now-90);
+ const meters=walkRoute.meters,available=Math.max(0,v.t-now-120);
  if(available>=walkRoute.walkSeconds)return 'walk-ok';
  if(available>=meters/1000*450)return 'jog-needed';
  if(available>=meters/1000*327.3)return 'run-needed';
@@ -66,7 +66,7 @@ function advice(v,now){
  if(walkRoute.status!=='ready')return '';
  if(walkRoute.meters<20)return '';
  const remaining=Math.max(0,v.t-now),meters=walkRoute.meters,walk=walkRoute.walkSeconds;
- const buffer=90,available=Math.max(0,remaining-buffer);
+ const buffer=120,available=Math.max(0,remaining-buffer);
  let msg,cls='';
  if(available>=walk){const wait=Math.ceil((available-walk)/60);msg=wait>0?'Lähde '+wait+' min kuluttua':'Lähde nyt';}
  else if(available>=meters/1000*450){msg='Hölkkää';cls='urgent';}
