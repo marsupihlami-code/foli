@@ -32,7 +32,7 @@
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const favorites=new Set((()=>{try{const v=JSON.parse(localStorage.getItem('zaani-ohjaava-favorite-stops-v1')||'[]');return Array.isArray(v)?v.map(String):[]}catch(e){return []}})());
-let stops=[],selected=null,last=[],requestId=0,position=null,locationToken=0,walkRoute=null,routeRequest=0,watchId=null;const etaHistory=new Map();const openKeys=new Set();
+let stops=[],selected=null,last=[],requestId=0,position=null,locationToken=0,walkRoute=null,routeRequest=0,watchId=null,routeOrigin=null;const etaHistory=new Map();const openKeys=new Set();
 function distance(a,b,c,d){let r=Math.PI/180,R=6371000,dl=(c-a)*r,do_=(d-b)*r,x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(do_/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function clock(t){return Number(t)>0?new Date(Number(t)*1000).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Helsinki'}):'–'}
 function err(s){$('error').innerHTML=s?'<div class="error">'+esc(s)+'</div>':''}
@@ -43,10 +43,10 @@ function parseStops(data){const raw=data?.result??data;const entries=Array.isArr
 // Pedestrian routing uses the public Valhalla demo service; no straight-line fallback is presented as a walking route.
 async function updateWalkRoute(){
  if(!position||!selected)return;
- const stopId=selected.id,lat=position.lat,lon=position.lon,seq=++routeRequest;
+ const stopId=selected.id,lat=position.lat,lon=position.lon,seq=++routeRequest;if(distance(lat,lon,selected.lat,selected.lon)>MAX_WALK_M){walkRoute=null;renderWalkSummary();render();return}routeOrigin={lat,lon,at:Date.now()};
  walkRoute={status:'loading',stopId};renderWalkSummary();render();
  try{
-  const q={locations:[{lat,lon},{lat:selected.lat,lon:selected.lon}],costing:'pedestrian',units:'kilometers'};
+  const round=x=>Math.round(x*10000)/10000;const q={locations:[{lat:round(lat),lon:round(lon)},{lat:round(selected.lat),lon:round(selected.lon)}],costing:'pedestrian',units:'kilometers'};
   const u='https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(q));
   const d=await json(u);
   if(seq!==routeRequest||selected?.id!==stopId)return;
@@ -59,7 +59,7 @@ async function updateWalkRoute(){
 }
 function renderWalkSummary(){
  const el=$('walkSummary');
- if(!selected||!position||!walkRoute||walkRoute.stopId!==selected.id||walkRoute.status!=='ready'){
+ if(!routeUsable()||walkRoute.meters>MAX_WALK_M){
   el.textContent='';
   el.hidden=true;
   return;
@@ -68,24 +68,24 @@ function renderWalkSummary(){
  el.innerHTML='Kävelyaika pysäkille <strong>'+Math.ceil(walkRoute.walkSeconds/60)+' min</strong> · '+Math.round(walkRoute.meters)+' m';
 }
 
+const PACE={walk:720,brisk:450,jog:327,run:200},PLAN_MARGIN=120,HARD_MARGIN=30,MAX_WALK_M=3000;
+function routeUsable(){return !!(position&&selected&&walkRoute?.status==='ready'&&walkRoute.stopId===selected.id&&Date.now()-walkRoute.at<300000&&Date.now()-(position.at||0)<120000)}
 function movementState(v,now){
- if(!position||!walkRoute||walkRoute.stopId!==selected?.id||walkRoute.status!=='ready'||walkRoute.meters<20)return null;
- const available=v.t-now-120,walk=walkRoute.walkSeconds,meters=walkRoute.meters;
- const departureIn=available-walk;
- if(departureIn>20)return {label:'Lähde '+Math.ceil(departureIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
- if(departureIn>=-20)return {label:'Lähde nyt!',icon:'→',cls:'walk-ok'};
- if(available>=meters/1000*450)return {label:'Kävele',icon:'→',cls:'walk-ok'};
- if(available>=meters/1000*327.3)return {label:'Hölkkää!',icon:'»',cls:'jog-needed'};
- if(available>=0)return {label:'Juokse!',icon:'»',cls:'run-needed'};
+ if(!routeUsable()||walkRoute.meters>MAX_WALK_M)return null;
+ const km=walkRoute.meters/1000;
+ if(km<.02)return {label:'Olet pysäkillä',icon:'•',cls:'walk-ok'};
+ const untilBus=v.t-now,leaveIn=untilBus-PLAN_MARGIN-km*PACE.walk;
+ if(leaveIn>20)return {label:'Lähde '+Math.ceil(leaveIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
+ if(leaveIn>=0)return {label:'Lähde nyt!',icon:'→',cls:'walk-ok'};
+ const available=untilBus-HARD_MARGIN;
+ if(available>=km*PACE.walk)return {label:'Kävele',icon:'→',cls:'walk-ok'};
+ if(available>=km*PACE.brisk)return {label:'Kävele reippaasti!',icon:'→',cls:'jog-needed'};
+ if(available>=km*PACE.jog)return {label:'Hölkkää!',icon:'»',cls:'jog-needed'};
+ if(available>=km*PACE.run)return {label:'Juokse!',icon:'»',cls:'run-needed'};
  return {label:'Myöhästyt!',icon:'!',cls:'too-late'};
 }
-function urgencyClass(v,now){return movementState(v,now)?.cls||'';}
-function advice(v,now){
- const state=movementState(v,now);
- if(!state)return '';
- return '<span class="travel-advice"><span class="action-icon" aria-hidden="true">'+state.icon+'</span>'+state.label+'</span>';
-}
-
+function urgencyClass(v,now){return movementState(v,now)?.cls||''}
+function advice(v,now){const state=movementState(v,now);return state?'<span class="travel-advice"><span class="action-icon" aria-hidden="true">'+state.icon+'</span>'+state.label+'</span>':''}
 function heartButton(s){const active=favorites.has(String(s.id));return '<button type="button" class="heart'+(active?' active':'')+'" data-favorite="'+esc(s.id)+'" aria-pressed="'+active+'" aria-label="'+(active?'Poista suosikeista: ':'Lisää suosikiksi: ')+esc(s.name)+'" title="'+(active?'Poista suosikeista':'Lisää suosikiksi')+'">'+(active?'&#9829;':'&#9825;')+'</button>'}
 function favoriteMark(s){return favorites.has(String(s.id))?'<span class="favorite-mark" role="img" aria-label="Suosikkipysäkki">&#9829;</span>':''}
 function renderFavorites(){const items=stops.filter(s=>favorites.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,'fi'));$('favorites').innerHTML=items.length?'<div class="muted">Suosikkipysäkit</div>'+items.map(s=>'<button type="button" class="secondary" style="margin:5px 5px 5px 0" data-id="'+esc(s.id)+'">'+esc(s.name)+'</button>').join(''):'';$('favorites').querySelectorAll('button').forEach(b=>b.onclick=()=>choose(b.dataset.id))}
@@ -126,22 +126,22 @@ async function choose(id){locationToken++;openKeys.clear();selected=stops.find(s
 async function load(){if(!selected)return;const id=++requestId;setStatus('Haetaan saapumisia…');err('');try{const data=await json('https://data.foli.fi/siri/sm/'+encodeURIComponent(selected.id));if(id!==requestId)return;if(data.status&&String(data.status).toUpperCase()!=='OK')throw Error('Rajapinnan tila: '+data.status);let rows=data.result;if(rows&&!Array.isArray(rows)&&typeof rows==='object')rows=Object.values(rows);if(!Array.isArray(rows))throw Error('Tuntematon saapumistietojen muoto');last=rows;recordEta(rows);render();setStatus('Päivitetty '+new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',second:'2-digit'}))}catch(e){if(id!==requestId)return;setStatus('Saapumistietoja ei voitu päivittää');err('Fölin saapumistietojen haku epäonnistui: '+e.message);if(last.length)render()}}
 async function ensureStops(){if(stops.length)return;try{const cached=JSON.parse(localStorage.getItem('zaani-ohjaava-stops-cache-v1')||'null');if(cached&&Date.now()-cached.saved<86400000&&Array.isArray(cached.stops)&&cached.stops.length){stops=cached.stops;renderFavorites();return}}catch(e){}const d=await json('https://data.foli.fi/gtfs/stops');stops=parseStops(d);if(!stops.length)throw Error('Pysäkkitietoja ei löytynyt');try{localStorage.setItem('zaani-ohjaava-stops-cache-v1',JSON.stringify({saved:Date.now(),stops}))}catch(e){}renderFavorites()}
 async function manualSearch(){locationToken++;err('');const q=$('manual').value.trim().toLocaleLowerCase('fi-FI');if(!q){err('Kirjoita pysäkin nimi tai numero.');return}setStatus('Haetaan pysäkkejä…');try{await ensureStops();renderMatches();setStatus('Valitse pysäkki hakutuloksista.')}catch(e){err('Pysäkkihaku epäonnistui: '+e.message);setStatus('Haku epäonnistui')}}
-async function locate(){const token=++locationToken;if(!navigator.geolocation){err('Selain ei tue sijaintitietoa.');return}err('');setStatus('Odotetaan sijaintilupaa…');$('locate').disabled=true;navigator.geolocation.getCurrentPosition(async p=>{if(token!==locationToken){$('locate').disabled=false;return}try{position={lat:p.coords.latitude,lon:p.coords.longitude};setStatus('Haetaan pysäkkejä…');await ensureStops();if(token!==locationToken){$('locate').disabled=false;return}stops.forEach(s=>s.dist=distance(position.lat,position.lon,s.lat,s.lon));stops.sort((a,b)=>a.dist-b.dist);await choose(stops[0].id);startPositionWatch()}catch(e){setStatus('Pysäkkien haku epäonnistui');err('Pysäkkitietojen lataus epäonnistui: '+e.message)}finally{$('locate').disabled=false}},e=>{if(token!==locationToken){$('locate').disabled=false;return}$('locate').disabled=false;setStatus('Sijaintia ei saatu');err(e.code===1?'Sijaintilupa estettiin. Voit silti hakea pysäkin nimellä tai numerolla yllä.':'Sijaintia ei saatu. Voit hakea pysäkin nimellä tai numerolla yllä.')},{enableHighAccuracy:true,timeout:15000,maximumAge:15000})}
+async function locate(){const token=++locationToken;if(!navigator.geolocation){err('Selain ei tue sijaintitietoa.');return}err('');setStatus('Odotetaan sijaintilupaa…');$('locate').disabled=true;navigator.geolocation.getCurrentPosition(async p=>{if(token!==locationToken){$('locate').disabled=false;return}try{position={lat:p.coords.latitude,lon:p.coords.longitude,at:Date.now()};setStatus('Haetaan pysäkkejä…');await ensureStops();if(token!==locationToken){$('locate').disabled=false;return}stops.forEach(s=>s.dist=distance(position.lat,position.lon,s.lat,s.lon));stops.sort((a,b)=>a.dist-b.dist);await choose(stops[0].id);startPositionWatch()}catch(e){setStatus('Pysäkkien haku epäonnistui');err('Pysäkkitietojen lataus epäonnistui: '+e.message)}finally{$('locate').disabled=false}},e=>{if(token!==locationToken){$('locate').disabled=false;return}$('locate').disabled=false;setStatus('Sijaintia ei saatu');err(e.code===1?'Sijaintilupa estettiin. Voit silti hakea pysäkin nimellä tai numerolla yllä.':'Sijaintia ei saatu. Voit hakea pysäkin nimellä tai numerolla yllä.')},{enableHighAccuracy:true,timeout:15000,maximumAge:15000})}
 
 
 function startPositionWatch(){
  if(!navigator.geolocation||watchId!==null)return;
  watchId=navigator.geolocation.watchPosition(p=>{
-  const next={lat:p.coords.latitude,lon:p.coords.longitude};
+  const next={lat:p.coords.latitude,lon:p.coords.longitude,at:Date.now()};
   const moved=position?distance(position.lat,position.lon,next.lat,next.lon):Infinity;
   position=next;
-  if(selected&&moved>40)updateWalkRoute();
-  else if(selected)render();
- },()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:20000});
+  if(selected&&(!routeOrigin||distance(routeOrigin.lat,routeOrigin.lon,next.lat,next.lon)>40||Date.now()-routeOrigin.at>120000))updateWalkRoute();
+  else if(selected){renderWalkSummary();render()}
+ },e=>{if(e.code===1){navigator.geolocation.clearWatch(watchId);watchId=null;position=null;walkRoute=null;renderWalkSummary();render()}},{enableHighAccuracy:true,maximumAge:15000,timeout:20000});
 }
 
 
-$('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected&&!document.hidden)load()},30000);setInterval(()=>{if(selected&&last.length&&!document.hidden)render()},5000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&selected)load()});(async()=>{try{await ensureStops();const saved=localStorage.getItem('zaani-ohjaava-last-stop-v1');if(saved&&stops.some(s=>s.id===saved))await choose(saved)}catch(e){}})();
+$('smartEta').onchange=render;$('search').onclick=manualSearch;$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')manualSearch()});$('locate').onclick=locate;$('refresh').onclick=()=>selected?load():locate();setInterval(()=>{if(selected&&!document.hidden)load()},30000);setInterval(()=>{if(selected&&last.length&&!document.hidden){renderWalkSummary();render()}},5000);document.addEventListener('visibilitychange',()=>{if(document.hidden){if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}}else{if(position){startPositionWatch();if(selected)updateWalkRoute()}if(selected)load()}});(async()=>{try{await ensureStops();const saved=localStorage.getItem('zaani-ohjaava-last-stop-v1');if(saved&&stops.some(s=>s.id===saved))await choose(saved)}catch(e){}})();
 </script>
 <!-- Cloudflare Web Analytics -->
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"ab028c5fbc104f8d970c2160fac77650"}'></script>
