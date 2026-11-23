@@ -14,7 +14,18 @@
 .departure-banner{padding:14px 16px;margin:12px 0;border-radius:12px;background:#e9f5ec;color:#155d34;font-size:20px;font-weight:800}.departure-banner small{display:block;font-size:12px;font-weight:500;color:#52675a;margin-top:4px}.departure-banner[hidden]{display:none}
 .travel-advice,.travel-advice.urgent,.travel-advice.late{color:#168447!important;font-size:16px;font-weight:800}.walk-summary{margin-top:8px}
 .bus.walk-ok{border-left:5px solid #168447;padding-left:9px}.bus.jog-needed{border-left:5px solid #e58b12;padding-left:9px}.bus.run-needed,.bus.too-late{border-left:5px solid #c93636;padding-left:9px}.bus .travel-advice{font-weight:800}.bus.walk-ok .travel-advice{color:#168447!important}.bus.jog-needed .travel-advice{color:#c57600!important}.bus.run-needed .travel-advice,.bus.too-late .travel-advice{color:#c93636!important}
-.test-version-label{background:#332b22;color:#fff;text-align:center;font-size:13px;font-weight:700;padding:9px 12px;letter-spacing:.04em}</style></head><body><div class="test-version-label">ZAANI · OHJAAVA TESTIVERSIO – EI JULKINEN TUOTANTOVERSIO</div><div class="app"><header class="top"><img class="brand-png" src="./zaani-logo.png" alt="Zaani – Föli-bussi"><div class="header-actions"><button type="button" id="locate" title="Etsi lähin pysäkki">Etsi lähin</button><button type="button" id="refresh" title="Päivitä saapumisajat">Päivitä</button></div></header>
+.test-version-label{background:#332b22;color:#fff;text-align:center;font-size:13px;font-weight:700;padding:9px 12px;letter-spacing:.04em}/* Ohjaavan version toimintavärit: koko bussikortti, ei vain reunaviiva */
+#list .bus{border-radius:13px;margin:9px 0;overflow:hidden;border-bottom:0}
+#list .bus.walk-ok{background:#e6f5e9;border-left:5px solid #168447}
+#list .bus.jog-needed{background:#fff0d8;border-left:5px solid #dc8200}
+#list .bus.run-needed,#list .bus.too-late{background:#ffe4e8;border-left:5px solid #c93646}
+#list .bus.walk-ok .main,#list .bus.jog-needed .main,#list .bus.run-needed .main,#list .bus.too-late .main{background:transparent;padding:16px 10px 16px 4px}
+#list .bus .details{padding:0 12px 15px 72px}
+#list .bus .travel-advice{display:block;white-space:nowrap;font-size:15px;font-weight:800}
+#list .bus .travel-advice .action-icon{display:inline-block;margin-right:5px;font-size:18px;vertical-align:-1px}
+#list .bus.jog-needed .travel-advice{color:#965700!important}
+#list .bus.run-needed .travel-advice,#list .bus.too-late .travel-advice{color:#ad2638!important}
+</style></head><body><div class="test-version-label">ZAANI · OHJAAVA TESTIVERSIO – EI JULKINEN TUOTANTOVERSIO</div><div class="app"><header class="top"><img class="brand-png" src="./zaani-logo.png" alt="Zaani – Föli-bussi"><div class="header-actions"><button type="button" id="locate" title="Etsi lähin pysäkki">Etsi lähin</button><button type="button" id="refresh" title="Päivitä saapumisajat">Päivitä</button></div></header>
 <main class="content"><div id="error" role="alert"></div><div id="advancedOptions" class="advanced-options"><div style="margin:14px 0"><label for="manual"><b>Valitse pysäkki ilman sijaintia</b></label><div style="display:flex;gap:8px;margin-top:8px"><input id="manual" placeholder="Pysäkin nimi tai numero" style="flex:1;min-width:0;padding:12px;border:1px solid #bbb;border-radius:10px;font:inherit"><button class="secondary" id="search">Hae</button></div><div id="matches"></div></div><label class="market-filter"><input id="smartEta" type="checkbox"> Zaanin kokeellinen ennuste</label></div><div id="favorites"></div><div id="stop"></div><div id="walkSummary" class="walk-summary"></div><div id="nearby" class="nearby"></div><div id="departureBanner" class="departure-banner" hidden></div><div id="list"></div><div id="status" class="status" aria-live="polite">Salli sijainti, jotta lähimmät pysäkit löytyvät.</div></main>
 <footer class="foot">Lähde: Turun seudun joukkoliikenteen liikennöinti- ja aikatauludata, <a href="https://data.foli.fi/">data.foli.fi</a> (CC BY 4.0). Epävirallinen konsepti. Sijainti käsitellään vain omassa selaimessasi, eikä sitä lähetetä sovelluksen palvelimelle. Sivustolla käytetään Cloudflare Web Analytics -kävijätilastointia. Reaaliaikaennusteet voivat muuttua. Päivitys 30 sekunnin välein.</footer></div>
 <script>
@@ -72,7 +83,7 @@ function advice(v,now){
  else if(available>=meters/1000*450){msg='Hölkkää';cls='urgent';}
  else if(available>=meters/1000*327.3){msg='Juokse';cls='urgent';}
  else {msg='Myöhästyt';cls='late';}
- return '<span class="travel-advice">'+msg+'</span>';
+ const icon=available>=walk?'🚶':available>=meters/1000*327.3?'🏃':'⏱️';return '<span class="travel-advice"><span class="action-icon" aria-hidden="true">'+icon+'</span>'+msg+'</span>';
 }
 function heartButton(s){const active=favorites.has(String(s.id));return '<button type="button" class="heart'+(active?' active':'')+'" data-favorite="'+esc(s.id)+'" aria-pressed="'+active+'" aria-label="'+(active?'Poista suosikeista: ':'Lisää suosikiksi: ')+esc(s.name)+'" title="'+(active?'Poista suosikeista':'Lisää suosikiksi')+'">'+(active?'&#9829;':'&#9825;')+'</button>'}
 function favoriteMark(s){return favorites.has(String(s.id))?'<span class="favorite-mark" role="img" aria-label="Suosikkipysäkki">&#9829;</span>':''}
