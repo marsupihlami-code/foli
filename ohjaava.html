@@ -58,12 +58,16 @@ async function updateWalkRoute(){
  renderWalkSummary();render();
 }
 function renderWalkSummary(){
- const el=$('walkSummary');if(!selected){el.innerHTML='';return}
- if(!position){el.innerHTML='Kävelyaika ei ole vielä tiedossa. <button type="button" id="walkLocate">Laske kävelyaika sijainnistani</button>';el.querySelector('button').onclick=locate;return}
- if(!walkRoute||walkRoute.stopId!==selected.id||walkRoute.status==='loading'){el.textContent='Lasketaan kävelyaikaa jalankulkureittiä pitkin…';return}
- if(walkRoute.status==='error'){el.innerHTML='Kävelyreitin laskenta epäonnistui. <button type="button" id="walkRetry">Yritä uudelleen</button>';el.querySelector('button').onclick=updateWalkRoute;return}
+ const el=$('walkSummary');
+ if(!selected||!position||!walkRoute||walkRoute.stopId!==selected.id||walkRoute.status!=='ready'){
+  el.textContent='';
+  el.hidden=true;
+  return;
+ }
+ el.hidden=false;
  el.innerHTML='Kävelyaika pysäkille <strong>'+Math.ceil(walkRoute.walkSeconds/60)+' min</strong> · '+Math.round(walkRoute.meters)+' m';
 }
+
 function urgencyClass(v,now){
  if(!position||!walkRoute||walkRoute.status!=='ready'||walkRoute.stopId!==selected?.id||walkRoute.meters<20)return '';
  const meters=walkRoute.meters,available=Math.max(0,v.t-now-120);
