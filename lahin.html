@@ -75,7 +75,7 @@ function routeUsable(){return !!(position&&selected&&walkRoute?.status==='ready'
 function movementState(v,now){
  if(!routeUsable()||walkRoute.meters>MAX_WALK_M)return null;
  const km=walkRoute.meters/1000;
- if(km<.02)return {label:'Olet pysäkillä',icon:'•',cls:'walk-ok'};
+ if(km<.02)return null; // Valitulla pysäkillä: ei liikkumiskehotetta
  const untilBus=v.t-now,leaveIn=untilBus-PLAN_MARGIN-km*PACE.walk;
  if(leaveIn>0)return {label:'Lähde '+Math.ceil(leaveIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
  if(leaveIn>=-20&&untilBus-HARD_MARGIN>=km*PACE.walk)return {label:'Lähde nyt!',icon:'→',cls:'walk-ok'};
