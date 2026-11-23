@@ -77,7 +77,7 @@ function movementState(v,now){
  const km=walkRoute.meters/1000;
  if(km<.02)return {label:'Olet pysäkillä',icon:'•',cls:'walk-ok'};
  const untilBus=v.t-now,leaveIn=untilBus-PLAN_MARGIN-km*PACE.walk;
- if(leaveIn>20)return {label:'Lähde '+Math.ceil(leaveIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
+ if(leaveIn>0)return {label:'Lähde '+Math.ceil(leaveIn/60)+' min kuluttua',icon:'→',cls:'walk-ok'};
  if(leaveIn>=-20&&untilBus-HARD_MARGIN>=km*PACE.walk)return {label:'Lähde nyt!',icon:'→',cls:'walk-ok'};
  const available=untilBus-HARD_MARGIN;
  if(available>=km*PACE.walk)return {label:'Kävele',icon:'→',cls:'walk-ok'};
