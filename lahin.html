@@ -26,13 +26,13 @@
 #list .bus.jog-needed .travel-advice{color:#965700!important}
 #list .bus.run-needed .travel-advice,#list .bus.too-late .travel-advice{color:#ad2638!important}
 #list .bus .travel-advice .action-icon{font-family:system-ui,sans-serif;font-size:20px;font-weight:900;line-height:1}#list .bus .main{border-radius:0}.walk-summary[hidden]{display:none!important}.nearby:empty{display:none!important}#status{color:#666;font-size:13px}.stop-title{margin:0}.market-filter{min-height:44px;display:flex;align-items:center}</style></head><body><h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Zaani – Fölin lähtöohjeet</h1><div class="app"><header class="top"><img class="brand-png" src="./zaani-logo.png" alt="Zaani – Föli-bussi"><div class="header-actions"><button type="button" id="locate" title="Etsi lähin pysäkki">Etsi lähin</button><button type="button" id="refresh" title="Päivitä saapumisajat">Päivitä</button></div></header>
-<main class="content"><noscript><div class="error">Zaani tarvitsee JavaScriptin toimiakseen.</div></noscript><div id="error" role="alert"></div><div id="advancedOptions" class="advanced-options"><div style="margin:14px 0"><label for="manual"><b>Valitse pysäkki ilman sijaintia</b></label><div style="display:flex;gap:8px;margin-top:8px"><input id="manual" placeholder="Pysäkin nimi tai numero" style="flex:1;min-width:0;padding:12px;border:1px solid #bbb;border-radius:10px;font:inherit"><button type="button" class="secondary" id="search">Hae</button></div><div id="matches"></div></div><label class="market-filter"><input id="smartEta" type="checkbox"> Zaanin kokeellinen ennuste</label></div><div id="favorites"></div><div id="stop"></div><div id="walkSummary" class="walk-summary" hidden></div><div id="nearby" class="nearby"></div><div id="departureBanner" class="departure-banner" hidden></div><div id="list" aria-label="Lähtevät bussit"></div><div id="status" class="status" aria-live="polite">Paina Etsi lähin tai hae pysäkki nimellä.</div></main>
+<main class="content"><noscript><div class="error">Zaani tarvitsee JavaScriptin toimiakseen.</div></noscript><div id="error" role="alert"></div><div id="advancedOptions" class="advanced-options"><div style="margin:14px 0"><label for="manual"><b>Valitse pysäkki ilman sijaintia</b></label><div style="display:flex;gap:8px;margin-top:8px"><input id="manual" placeholder="Pysäkin nimi tai numero" style="flex:1;min-width:0;padding:12px;border:1px solid #bbb;border-radius:10px;font:inherit"><button type="button" class="secondary" id="search">Hae</button></div><div id="matches"></div></div><label class="market-filter"><input id="smartEta" type="checkbox"> Zaanin kokeellinen ennuste</label></div><div id="favorites"></div><div id="stop"></div><div id="walkSummary" class="walk-summary" hidden></div><div id="nearby" class="nearby"></div><div id="departureBanner" class="departure-banner" role="status" hidden></div><div id="list" aria-label="Lähtevät bussit"></div><div id="status" class="status" aria-live="polite">Paina Etsi lähin tai hae pysäkki nimellä.</div></main>
 <footer class="foot">Lähde: Turun seudun joukkoliikenteen liikennöinti- ja aikatauludata, <a href="https://data.foli.fi/">data.foli.fi</a> (CC BY 4.0). Epävirallinen konsepti. Kävelyreitin laskemiseksi sijaintisi lähetetään ulkoiseen reitityspalveluun (valhalla1.openstreetmap.de). Sivustolla käytetään Cloudflare Web Analytics -kävijätilastointia. Reaaliaikaennusteet voivat muuttua. Päivitys 30 sekunnin välein.</footer></div>
 <script>
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const favorites=new Set((()=>{try{const v=JSON.parse(localStorage.getItem('zaani-favorite-stops-v1')||'[]');return Array.isArray(v)?v.map(String):[]}catch(e){return []}})());
-let stops=[],nearbyStops=[],selected=null,last=[],departuresCurrent=false,requestId=0,position=null,locationToken=0,walkRoute=null,routeRequest=0,watchId=null,routeOrigin=null;const etaHistory=new Map();const openKeys=new Set();const movementStarted=new Set();
+let stops=[],nearbyStops=[],selected=null,last=[],departuresCurrent=false,usingTimetable=false,requestId=0,position=null,locationToken=0,walkRoute=null,routeRequest=0,watchId=null,routeOrigin=null;const etaHistory=new Map();const openKeys=new Set();const movementStarted=new Set();
 function distance(a,b,c,d){let r=Math.PI/180,R=6371000,dl=(c-a)*r,do_=(d-b)*r,x=Math.sin(dl/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(do_/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function clock(t){return Number(t)>0?new Date(Number(t)*1000).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Helsinki'}):'–'}
 function err(s){$('error').innerHTML=s?'<div class="error">'+esc(s)+'</div>':''}
@@ -73,7 +73,7 @@ function renderWalkSummary(){
 const PACE={walk:720,brisk:450,jog:327,run:200},PLAN_MARGIN=120,HARD_MARGIN=30,MAX_WALK_M=3000;
 function routeUsable(){return !!(position&&selected&&walkRoute?.status==='ready'&&walkRoute.stopId===selected.id&&Date.now()-walkRoute.at<300000&&Date.now()-(position.at||0)<120000)}
 function movementState(v,now){
- if(!routeUsable()||walkRoute.meters>MAX_WALK_M)return null;
+ if(usingTimetable||!departuresCurrent||!routeUsable()||walkRoute.meters>MAX_WALK_M)return null;
  const km=walkRoute.meters/1000;
  if(km<.02)return null; // Valitulla pysäkillä: ei liikkumiskehotetta
  const untilBus=v.t-now,leaveIn=untilBus-PLAN_MARGIN-km*PACE.walk;
@@ -124,11 +124,98 @@ function adjustedEta(v,baseline,now){
  return {time:Math.max(now,baseline+correction),active:Math.abs(correction)>=5};
 }
 function rowKey(v){return [v.lineref||'',v.aimedarrivaltime||v.aimeddeparturetime||'',v.destinationdisplay||''].join('|')}
-function render(){if(!selected)return;const focusedKey=document.activeElement?.closest?.('.bus')?.dataset.key;const now=Date.now()/1000;const source=last;const rows=source.map(v=>{const expected=Number(v.expecteddeparturetime||v.expectedarrivaltime);const live=(v.monitored===true||v.monitored==='true')&&expected>0;const t=Number(live?expected:(v.aimeddeparturetime||v.aimedarrivaltime));const prediction=adjustedEta({...v,live},t,now);return {...v,t:prediction.time,officialTime:t,experimental:prediction.active,live}}).filter(v=>Number.isFinite(v.t)&&v.t>now-60).sort((a,b)=>a.t-b.t);$('list').innerHTML=rows.length?rows.slice(0,25).map(v=>{const min=Math.max(0,Math.floor((v.t-now)/60));const key=rowKey(v);const open=openKeys.has(key);return '<article class="bus '+urgencyClass(v,now)+'" data-key="'+esc(key)+'"><button class="main" aria-expanded="'+open+'"><span class="line">'+esc(v.lineref||'?')+'</span><span class="mins">'+advice(v,now)+'<strong>'+(min===0?'Nyt':min+' min')+'</strong></span><span aria-hidden="true">⌄</span></button><div class="details" '+(open?'':'hidden')+'><div><b>Määränpää:</b> '+esc(v.destinationdisplay||'Ei tietoa')+'</div><div><b>Lähtee:</b> '+clock(v.t)+'</div></div></article>'}).join('') :departuresCurrent?'<div class="empty">Tulevia lähtöjä ei löytynyt tälle pysäkille.</div>':'';if(focusedKey)[...$('list').querySelectorAll('.bus')].find(a=>a.dataset.key===focusedKey)?.querySelector('.main')?.focus({preventScroll:true});$('list').querySelectorAll('.main').forEach(b=>b.onclick=()=>{const d=b.nextElementSibling;d.hidden=!d.hidden;b.setAttribute('aria-expanded',String(!d.hidden));const k=b.parentElement.dataset.key;d.hidden?openKeys.delete(k):openKeys.add(k)})}
-async function choose(id){locationToken++;openKeys.clear();movementStarted.clear();const found=stops.find(s=>s.id===id);if(!found)return;selected=found;walkRoute=null;routeRequest++;try{localStorage.setItem('zaani-last-stop-v1',selected.id)}catch(e){}last=[];departuresCurrent=false;$('list').innerHTML='';displayStops();if(position)updateWalkRoute();await load()}
-async function load(){if(!selected)return;const id=++requestId;setStatus('Haetaan saapumisia…');err('');try{const data=await json('https://data.foli.fi/siri/sm/'+encodeURIComponent(selected.id));if(id!==requestId)return;if(data.status&&String(data.status).toUpperCase()!=='OK')throw Error('Rajapinnan tila: '+data.status);let rows=data.result;if(rows&&!Array.isArray(rows)&&typeof rows==='object')rows=Object.values(rows);if(!Array.isArray(rows))throw Error('Tuntematon saapumistietojen muoto');last=rows;departuresCurrent=true;recordEta(rows);render();setStatus('Päivitetty '+new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Europe/Helsinki'}))}catch(e){if(id!==requestId)return;console.warn(e);departuresCurrent=false;setStatus(last.length?'Näytetään viimeksi haetut lähtötiedot.':'');err('Lähtötietoja ei saatu päivitettyä. Yritä hetken kuluttua.');render()}}
+function renderTimetableNotice(){
+ const banner=$('departureBanner');
+ banner.hidden=!usingTimetable;
+ const message=usingTimetable?'Näytetään aikataulun mukaiset lähdöt. Reaaliaikatietoa ei ole saatavilla.':'';
+ if(banner.textContent!==message)banner.textContent=message;
+}
+function render(){if(!selected)return;renderTimetableNotice();const focusedKey=document.activeElement?.closest?.('.bus')?.dataset.key;const now=Date.now()/1000;const source=last;const rows=source.map(v=>{const expected=Number(v.expecteddeparturetime||v.expectedarrivaltime);const live=(v.monitored===true||v.monitored==='true')&&expected>0;const t=Number(live?expected:(v.aimeddeparturetime||v.aimedarrivaltime));const prediction=adjustedEta({...v,live},t,now);return {...v,t:prediction.time,officialTime:t,experimental:prediction.active,live}}).filter(v=>Number.isFinite(v.t)&&v.t>(usingTimetable?now:now-60)).sort((a,b)=>a.t-b.t);$('list').innerHTML=rows.length?rows.slice(0,25).map(v=>{const min=Math.max(0,Math.floor((v.t-now)/60));const key=rowKey(v);const open=openKeys.has(key);return '<article class="bus '+urgencyClass(v,now)+'" data-key="'+esc(key)+'"><button class="main" aria-expanded="'+open+'"><span class="line">'+esc(v.lineref||'?')+'</span><span class="mins">'+advice(v,now)+'<strong>'+(usingTimetable?clock(v.t):(min===0?'Nyt':min+' min'))+'</strong></span><span aria-hidden="true">⌄</span></button><div class="details" '+(open?'':'hidden')+'><div><b>Määränpää:</b> '+esc(v.destinationdisplay||'Ei tietoa')+'</div><div><b>Lähtee:</b> '+clock(v.t)+(usingTimetable?' (aikataulu)':'')+'</div></div></article>'}).join('') :departuresCurrent?'<div class="empty">'+(usingTimetable?'Aikataulusta ei löytynyt tulevia lähtöjä.':'Tulevia lähtöjä ei löytynyt tälle pysäkille.')+'</div>':'';if(focusedKey)[...$('list').querySelectorAll('.bus')].find(a=>a.dataset.key===focusedKey)?.querySelector('.main')?.focus({preventScroll:true});$('list').querySelectorAll('.main').forEach(b=>b.onclick=()=>{const d=b.nextElementSibling;d.hidden=!d.hidden;b.setAttribute('aria-expanded',String(!d.hidden));const k=b.parentElement.dataset.key;d.hidden?openKeys.delete(k):openKeys.add(k)})}
+async function choose(id){locationToken++;openKeys.clear();movementStarted.clear();const found=stops.find(s=>s.id===id);if(!found)return;selected=found;walkRoute=null;routeRequest++;try{localStorage.setItem('zaani-last-stop-v1',selected.id)}catch(e){}last=[];departuresCurrent=false;usingTimetable=false;renderTimetableNotice();$('list').innerHTML='';displayStops();if(position)updateWalkRoute();await load()}
+const timetableRequests=new Map();
+const helsinkiDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Helsinki',year:'numeric',month:'2-digit',day:'2-digit'});
+
+function timetableFile(name){
+ if(!timetableRequests.has(name)){
+  const request=(async()=>{
+   const response=await fetch('./timetable/'+name+'.json.gz',{signal:AbortSignal.timeout(10000)});
+   if(!response.ok)throw Error('Aikataulutiedosto: HTTP '+response.status);
+   return await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json();
+  })().catch(error=>{timetableRequests.delete(name);throw error});
+  timetableRequests.set(name,request);
+ }
+ return timetableRequests.get(name);
+}
+
+async function scheduledDepartures(stopId){
+ const timetable=await timetableFile('index');
+ const today=helsinkiDate.format(Date.now());
+ if(today<timetable.from||today>timetable.through)throw Error('Aikataulu ei kata tätä päivää');
+ const bucket=[...stopId].reduce((sum,character)=>sum+character.codePointAt(0),0)%timetable.buckets;
+ const departures=(await timetableFile(bucket))[stopId];
+ if(!departures&&!timetable.stops.some(stop=>stop[0]===stopId))throw Error('Pysäkki puuttuu aikataulusta');
+ const now=Date.now()/1000,until=now+86400;
+ const rows=[];
+ for(const [origin,services] of timetable.days){
+  if(origin+timetable.longest<now||origin>until)continue;
+  for(const service of services){
+   for(const [offset,label] of departures?.[service]||[]){
+    const time=origin+offset;
+    if(time<now||time>until)continue;
+    const [lineref,destinationdisplay]=timetable.labels[label];
+    rows.push({lineref,destinationdisplay,aimeddeparturetime:time});
+   }
+  }
+ }
+ return rows;
+}
+
+async function load(){
+ if(!selected)return;
+ const id=++requestId,stopId=selected.id;
+ if(!usingTimetable)setStatus('Haetaan saapumisia…');
+ err('');
+ try{
+  const data=await json('https://data.foli.fi/siri/sm/'+encodeURIComponent(stopId));
+  if(id!==requestId)return;
+  if(data.status&&String(data.status).toUpperCase()!=='OK')throw Error('Rajapinnan tila: '+data.status);
+  let rows=data.result;
+  if(rows&&!Array.isArray(rows)&&typeof rows==='object')rows=Object.values(rows);
+  if(!Array.isArray(rows))throw Error('Tuntematon saapumistietojen muoto');
+  last=rows;
+  usingTimetable=false;
+  departuresCurrent=true;
+  recordEta(rows);
+  render();
+  setStatus('Päivitetty '+new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Europe/Helsinki'}));
+ }catch(error){
+  if(id!==requestId)return;
+  console.warn(error);
+  if(!usingTimetable){
+   departuresCurrent=false;
+   render();
+  }
+  try{
+   const rows=await scheduledDepartures(stopId);
+   if(id!==requestId)return;
+   last=rows;
+   usingTimetable=true;
+   departuresCurrent=true;
+   setStatus('');
+  }catch(timetableError){
+   if(id!==requestId)return;
+   console.warn(timetableError);
+   if(usingTimetable)last=[];
+   usingTimetable=false;
+   departuresCurrent=false;
+   setStatus(last.length?'Näytetään viimeksi haetut lähtötiedot.':'');
+   err('Lähtötietoja ei saatu päivitettyä. Yritä hetken kuluttua.');
+  }
+  render();
+ }
+}
 function readStopsCache(){try{const c=JSON.parse(localStorage.getItem('zaani-stops-cache-v1')||'null');if(c&&Number.isFinite(c.saved)&&Array.isArray(c.stops)&&c.stops.length&&c.stops.every(v=>v&&typeof v.id==='string'&&typeof v.name==='string'&&Number.isFinite(v.lat)&&Number.isFinite(v.lon)))return c;localStorage.removeItem('zaani-stops-cache-v1')}catch(e){try{localStorage.removeItem('zaani-stops-cache-v1')}catch(_){}}return null}
-async function ensureStops(){if(stops.length)return;const cached=readStopsCache();if(cached&&Date.now()-cached.saved<86400000){stops=cached.stops;renderFavorites();return}try{const d=await json('https://data.foli.fi/gtfs/stops');stops=parseStops(d);if(!stops.length)throw Error('Pysäkkitietoja ei löytynyt');try{localStorage.setItem('zaani-stops-cache-v1',JSON.stringify({saved:Date.now(),stops}))}catch(e){}}catch(e){if(!cached)throw e;stops=cached.stops;setStatus('Näytetään tallennetut pysäkit. Verkkoyhteydessä on häiriö.')}renderFavorites()}
+async function ensureStops(){if(stops.length)return;const cached=readStopsCache();if(cached&&Date.now()-cached.saved<86400000){stops=cached.stops;renderFavorites();return}try{const d=await json('https://data.foli.fi/gtfs/stops');stops=parseStops(d);if(!stops.length)throw Error('Pysäkkitietoja ei löytynyt');try{localStorage.setItem('zaani-stops-cache-v1',JSON.stringify({saved:Date.now(),stops}))}catch(e){}}catch(e){if(cached){stops=cached.stops}else{const timetable=await timetableFile('index');stops=timetable.stops.map(([id,name,lat,lon])=>({id,name,lat,lon}))}}renderFavorites()}
 async function manualSearch(){locationToken++;err('');const q=$('manual').value.trim().toLocaleLowerCase('fi-FI');if(!q){err('Kirjoita pysäkin nimi tai numero.');return}setStatus('Haetaan pysäkkejä…');try{await ensureStops();renderMatches();setStatus('Valitse pysäkki hakutuloksista.')}catch(e){err(userMessage(e));setStatus('Haku epäonnistui')}}
 async function locate(){const token=++locationToken;if(!navigator.geolocation){err('Selain ei tue sijaintitietoa.');return}err('');setStatus('Odotetaan sijaintilupaa…');$('locate').disabled=true;navigator.geolocation.getCurrentPosition(async p=>{if(token!==locationToken){$('locate').disabled=false;return}try{position={lat:p.coords.latitude,lon:p.coords.longitude,at:Date.now()};setStatus('Haetaan pysäkkejä…');await ensureStops();if(token!==locationToken){$('locate').disabled=false;return}refreshDistances();if(!nearbyStops.length||nearbyStops[0].dist>MAX_WALK_M){err('Lähin Föli-pysäkki on '+(nearbyStops.length?fmtDist(nearbyStops[0].dist):'liian kaukana')+' päässä. Hae pysäkki nimellä.');setStatus('Lähellä ei ole Föli-pysäkkiä');return}await choose(nearbyStops[0].id);startPositionWatch()}catch(e){setStatus('Pysäkkien haku epäonnistui');err(userMessage(e))}finally{$('locate').disabled=false}},e=>{if(token!==locationToken){$('locate').disabled=false;return}$('locate').disabled=false;setStatus('Sijaintia ei saatu');err(e.code===1?'Sijaintilupa estettiin. Voit silti hakea pysäkin nimellä tai numerolla yllä.':'Sijaintia ei saatu. Voit hakea pysäkin nimellä tai numerolla yllä.')},{enableHighAccuracy:true,timeout:15000,maximumAge:15000})}
 
