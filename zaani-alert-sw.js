@@ -1,2 +1,2 @@
-self.addEventListener('push',event=>{let data={};try{data=event.data.json()}catch{}event.waitUntil(self.registration.showNotification(data.title||'Zaani',{body:data.body||'Lähtöhälytys',icon:'./zaani-logo.png',tag:'zaani-alert',data:{url:'./ohjaava.html'}}))});
-self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(clients.openWindow(new URL('./ohjaava.html',self.registration.scope).href))});
+self.addEventListener('push',event=>{let data={};try{data=event.data.json()}catch{}event.waitUntil(self.registration.showNotification(data.title||'Zaani',{body:data.body||'Lähtöhälytys',icon:'./zaani-logo.png',tag:'zaani-alert',data:{url:'./lahin.html'}}))});
+self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(clients.openWindow(new URL('./lahin.html',self.registration.scope).href))});
